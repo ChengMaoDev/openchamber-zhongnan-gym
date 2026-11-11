@@ -70,4 +70,18 @@ describe("内部人数记录", () => {
     store = new Store(join(directory, "history.sqlite3"));
     expect(store.history(CURRENT)).toEqual([{ timestamp: CURRENT, count: 0 }]);
   });
+
+  test("同一秒先失败后成功，状态始终反映最后一次结果", () => {
+    store.add({ timestamp: CURRENT, count: 81 }, "{}");
+    store.failure(CURRENT, "断网");
+    expect(store.status(CURRENT).error).toBe("断网");
+    store.add({ timestamp: CURRENT, count: 92 }, "{}");
+    expect(store.status(CURRENT).error).toBeNull();
+    expect(store.status(CURRENT).count).toBe(92);
+  });
+
+  test("反向时间范围不产生越界的虚构观测", () => {
+    store.db.prepare("INSERT INTO samples VALUES(?,?,?,?)").run(CURRENT - 120, CURRENT, 81, "{}");
+    expect(store.segments(CURRENT - 30, CURRENT - 60)).toEqual([]);
+  });
 });

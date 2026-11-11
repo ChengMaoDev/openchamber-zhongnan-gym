@@ -83,4 +83,19 @@ describe("本地预测", () => {
     expect(at(result, 0)).toBeCloseTo(1 / 11, 10);
     expect(at(result, 1)).toBeCloseTo(7 / 11, 10);
   });
+
+  test("没有同星期样本时，工作日不会混用周末高峰", () => {
+    const samples: Sample[] = [];
+    for (const [day, count] of [
+      ["2026-11-06", 40],
+      ["2026-11-07", 200],
+      ["2026-11-08", 200],
+    ] as const) {
+      for (let minute = 420; minute < 1380; minute += 5) {
+        samples.push({ timestamp: dayStart(day) + minute * 60, count });
+      }
+    }
+    const model = Profile.fit(samples, null);
+    expect(model.predict(dayStart("2026-11-09") + 12 * 3600)).toBeCloseTo(40);
+  });
 });

@@ -32,6 +32,8 @@ export class Profile {
   ) {}
 
   static fit(samples: readonly Sample[], alpha: number | null): Profile {
+    const newest = samples.at(-1)?.timestamp;
+    if (newest === undefined) throw new Error("训练样本为空");
     const nearby = new Map<number, Sample[]>();
     for (const sample of samples) {
       const slot = Math.floor(minuteOf(sample.timestamp) / 5);
@@ -45,8 +47,18 @@ export class Profile {
       Array.from({ length: 288 }, (_, slot) => {
         const nearbySamples = nearby.get(slot) ?? [];
         const matching = nearbySamples.filter((sample) => weekday(sample.timestamp) === day);
-        const pool = matching.length >= 4 ? matching : nearbySamples;
-        return pool.length ? pool.reduce((sum, sample) => sum + sample.count, 0) / pool.length : 0;
+        const sameKind = nearbySamples.filter(
+          (sample) => weekday(sample.timestamp) >= 5 === day >= 5,
+        );
+        const pool = matching.length >= 4 ? matching : sameKind.length ? sameKind : nearbySamples;
+        let weighted = 0;
+        let weights = 0;
+        for (const sample of pool) {
+          const weight = Math.exp(-(newest - sample.timestamp) / 864000);
+          weighted += sample.count * weight;
+          weights += weight;
+        }
+        return weights ? weighted / weights : 0;
       }),
     );
     const slots = new Set(nearby.keys());
@@ -54,8 +66,6 @@ export class Profile {
     const size = 52;
     const matrix = new Float64Array(size * size);
     const targets = new Float64Array(size);
-    const newest = samples.at(-1)?.timestamp;
-    if (newest === undefined) throw new Error("训练样本为空");
     for (const sample of samples) {
       const row = features(sample.timestamp);
       const weight = Math.exp(-(newest - sample.timestamp) / 864000);

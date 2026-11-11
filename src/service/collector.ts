@@ -34,7 +34,8 @@ export class Collector {
   ) {}
 
   start(): void {
-    const previous = this.store.status(nowSeconds()).updatedAt;
+    if (this.timer || this.stopped) return;
+    const previous = this.store.lastRequest();
     if (previous !== null)
       this.lastStarted = this.monotonic() - Math.max(0, nowSeconds() - previous) * 1000;
     this.timer = setInterval(() => void this.tick(), 1000);
@@ -49,6 +50,7 @@ export class Collector {
     const timeout = setTimeout(() => this.controller?.abort(), 15000);
     try {
       this.store.prune(nowSeconds());
+      this.store.markRequest(nowSeconds());
       const response = await this.request(API_URL, {
         signal: this.controller.signal,
         cache: "no-store",
@@ -57,6 +59,7 @@ export class Collector {
       const payload = await response.text();
       if (payload.length > 16384) throw new Error("人数响应过大");
       const value: unknown = JSON.parse(payload);
+      if (this.stopped) return;
       this.store.add({ timestamp: nowSeconds(), count: parseCount(value) }, payload);
     } catch (error) {
       if (!this.stopped) {
@@ -78,6 +81,7 @@ export class Collector {
   stop(): void {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
+    this.timer = null;
     this.controller?.abort();
   }
 }

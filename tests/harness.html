@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>终南健身扩展验收</title></head>
+<body style="margin:0">
+<div style="padding:8px;display:flex;gap:8px">
+  <button type="button" id="theme">切换深浅色</button>
+  <button type="button" id="hold">延迟下一次读取</button>
+  <button type="button" id="release">返回数据</button>
+  <button type="button" id="fail">切换读取失败</button>
+</div>
+<iframe title="终南健身" src="/panel/index.html" sandbox="allow-scripts" style="width:380px;height:620px;border:0"></iframe>
+<script>
+const frame = document.querySelector('iframe');
+const envelope = {channel:'openchamber.sdk',v:1};
+const today = new Date(Date.now()+28800000).toISOString().slice(0,10);
+const start = Date.parse(`${today}T00:00:00+08:00`)/1000;
+const tokens = {background:'#f7f9fc',elevated:'#fff',foreground:'#193247',muted:'#647d90',subtle:'#eaf0f7',border:'#dce5ee',hover:'#eaf0f7',selection:'#e0edf5',focus:'#16869c',primary:'#16869c',mutedSurface:'#eaf0f7',elevatedForeground:'#193247',active:'#dce5ee',selectionForeground:'#193247',primaryForeground:'#fff',primaryText:'#16869c',successText:'#39774c',warningText:'#886914',errorText:'#b7493f',infoText:'#326f9b',success:'#39774c',warning:'#886914',error:'#b7493f',info:'#326f9b',font:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',mono:'monospace',radius:'.5rem'};
+const context = {theme:{mode:'light',tokens},locale:'zh-CN',directory:null,session:null,surface:new URLSearchParams(location.search).get('surface')||'panel',connection:{connected:false,account:''},settings:{},item:null};
+let held=false, failed=new URLSearchParams(location.search).has('fail');
+const pending=[];
+window.requests=[];
+document.querySelector('#hold').onclick=()=>{held=true};
+document.querySelector('#release').onclick=()=>{held=false; for(const release of pending.splice(0)) release()};
+document.querySelector('#fail').onclick=()=>{failed=!failed};
+document.querySelector('#theme').onclick=()=>{
+  const dark=context.theme.mode==='light';context.theme.mode=dark?'dark':'light';
+  Object.assign(tokens,dark?{background:'#1d2630',foreground:'#edf3f8',muted:'#a4b5c5',border:'#3c4c5d',hover:'#24313e'}:{background:'#f7f9fc',foreground:'#193247',muted:'#647d90',border:'#dce5ee',hover:'#eaf0f7'});
+  frame.contentWindow.postMessage({...envelope,type:'ready',payload:context},'*');
+};
+window.addEventListener('message',async(event)=>{
+  const message=event.data;
+  if(event.source!==frame.contentWindow||message.channel!==envelope.channel) return;
+  const reply=payload=>event.source.postMessage({...envelope,type:'result',id:message.id,ok:true,payload},'*');
+  if(message.type==='hello') return event.source.postMessage({...envelope,type:'ready',payload:context},'*');
+  if(message.type==='service-request'){
+    window.requests.push(message.payload);
+    if(held) await new Promise(resolve=>pending.push(resolve));
+    if(failed) return reply({status:503,body:'{}'});
+    const day=message.payload.query?.day||today;
+    const base=Date.parse(`${day}T00:00:00+08:00`)/1000;
+    const count=day===today?80:40;
+    const samples=Array.from({length:180},(_,index)=>({timestamp:base+36000+index*60,count:count+Math.round(5*Math.sin(index/20))}));
+    const points=Array.from({length:108},(_,index)=>({timestamp:start+46800+index*300,count:70+20*Math.sin(index/30),lower:60,upper:100}));
+    return reply({status:200,body:JSON.stringify({day,today,status:{count:80,updatedAt:Math.floor(Date.now()/1000),error:null,stale:false},samples,prediction:{issuedAt:Math.floor(Date.now()/1000),points,method:'时段均值',trainingDays:3,mae:null,weekdayDays:[1,1,1,0,0,0,0]},modelError:null,imported:0})});
+  }
+  if(message.id) reply({});
+});
+</script>
+</body>
+</html>

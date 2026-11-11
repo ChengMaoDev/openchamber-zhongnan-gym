@@ -1,6 +1,6 @@
 import { connectHost, type HostReadyContext } from "@openchamber/sdk";
 import { applyHostReady } from "@openchamber/sdk/ui";
-import { dayOf, dayStart, ZONE } from "../shared/domain";
+import { dayOf, dayStart, RETENTION_SECONDS, ZONE } from "../shared/domain";
 import { type ViewData, viewSchema } from "../shared/schema";
 import { drawChart } from "./chart";
 import { createControls } from "./controls";
@@ -21,6 +21,7 @@ let active = false;
 let pending = false;
 let disposed = false;
 let controls: ReturnType<typeof createControls> | null = null;
+let readError: string | null = null;
 const time = new Intl.DateTimeFormat("zh-CN", {
   timeZone: ZONE,
   hour: "2-digit",
@@ -29,46 +30,70 @@ const time = new Intl.DateTimeFormat("zh-CN", {
 });
 
 function select(offset: number): void {
-  day = dayOf(dayStart(day) + offset * 86400);
-  followingToday = day === (data?.today ?? dayOf(Date.now() / 1000));
+  const today = dayOf(Date.now() / 1000);
+  day = clampDay(dayOf(dayStart(day) + offset * 86400), today);
+  followingToday = day === today;
   void load();
 }
 
+function clampDay(selected: string, today: string): string {
+  const earliest = dayOf(dayStart(today) - RETENTION_SECONDS);
+  return selected < earliest ? earliest : selected > today ? today : selected;
+}
+
 function paint(): void {
-  if (!data) return;
+  if (!data) {
+    element("notice").textContent = readError ?? "";
+    element("updated").textContent = readError ? "等待连接恢复" : "正在连接…";
+    return;
+  }
   element("count").textContent = data.status.count === null ? "—" : String(data.status.count);
   element("updated").textContent =
     data.status.updatedAt === null
       ? "等待采集"
-      : `${time.format(data.status.updatedAt * 1000)} 更新${data.status.stale ? " · 等待恢复" : ""}`;
-  element("updated").title = data.status.error ?? "";
+      : `${time.format(data.status.updatedAt * 1000)} 更新${data.status.stale || readError ? " · 等待恢复" : ""}`;
+  element("updated").title = readError ?? data.status.error ?? "";
   element("date").textContent =
     `${day === data.today ? "今天 " : ""}${day.slice(5, 7)} 月 ${day.slice(8)} 日`;
   controls?.previous.update({ disabled: day <= dayOf(dayStart(data.today) - 30 * 86400) });
   controls?.next.update({ disabled: day >= data.today });
   element("today").hidden = day === data.today;
-  if (data.samples.length) {
+  const loadingDay = data.day !== day;
+  element("chart").setAttribute("aria-busy", String(loadingDay));
+  if (loadingDay) {
+    element("chart").replaceChildren();
+    element("summary").textContent = "正在读取…";
+  } else if (data.samples.length) {
     const peak = data.samples.reduce((best, sample) => (sample.count > best.count ? sample : best));
     const mean = data.samples.reduce((sum, sample) => sum + sample.count, 0) / data.samples.length;
     element("summary").textContent =
       `最高 ${peak.count} 人 / ${time.format(peak.timestamp * 1000)}　均值 ${mean.toFixed(0)} 人`;
   } else element("summary").textContent = "暂无记录";
   const prediction = data.prediction;
-  element("model").textContent = !prediction?.trainingDays
-    ? "记录 1 天后开始预测"
-    : `已学习 ${prediction.trainingDays} 天${prediction.mae === null ? " · 待回测" : ` · 回测误差 ${prediction.mae.toFixed(1)} 人`}`;
+  element("model").textContent = data.modelError
+    ? "预测暂不可用"
+    : !prediction?.trainingDays
+      ? data.modelPending
+        ? "正在更新预测…"
+        : "记录 1 天后开始预测"
+      : `已学习 ${prediction.trainingDays} 天${prediction.mae === null ? " · 待回测" : ` · 回测误差 ${prediction.mae.toFixed(1)} 人`}`;
   element("model").title =
     prediction?.weekdayDays
       .map((count, index) => `周${"一二三四五六日"[index]} ${count} 天`)
       .join(" · ") ?? "按星期与工作日/周末持续学习";
-  element("notice").textContent = data.modelError ? "预测暂不可用，下次采集后重试" : "";
-  drawChart(element("chart"), data, compact);
+  element("notice").textContent =
+    readError ??
+    (data.modelError ? "预测暂不可用，下次采集后重试" : (data.historyImportError ?? ""));
+  if (!loadingDay) drawChart(element("chart"), data, compact);
   if (compact) host.setHeight(Math.min(320, element("app").scrollHeight + 8));
 }
 
 async function load(): Promise<void> {
-  if (disposed) return;
+  if (disposed || !mounted) return;
+  const today = dayOf(Date.now() / 1000);
+  day = followingToday ? today : clampDay(day, today);
   pending = true;
+  paint();
   if (active) return;
   active = true;
   controls?.refresh.update({ loading: true });
@@ -76,12 +101,14 @@ async function load(): Promise<void> {
     while (pending && !disposed) {
       pending = false;
       const requested = day;
+      const requestToday = followingToday;
       try {
         const reply = await host.serviceRequest({
           method: "GET",
           path: "/view",
-          query: { day: requested },
+          query: requestToday ? {} : { day: requested },
         });
+        if (disposed) return;
         if (reply.status !== 200) throw new Error("暂时无法读取记录");
         const raw: unknown = JSON.parse(reply.body);
         const result = viewSchema.parse(raw);
@@ -90,19 +117,22 @@ async function load(): Promise<void> {
           continue;
         }
         data = result;
-        if (followingToday && day !== result.today) {
-          day = result.today;
+        if (requestToday) day = result.today;
+        readError = null;
+        paint();
+      } catch (error) {
+        if (disposed) return;
+        if (requested !== day) {
           pending = true;
           continue;
         }
+        readError = error instanceof Error ? error.message : "扩展服务暂不可用";
         paint();
-      } catch (error) {
-        element("notice").textContent = error instanceof Error ? error.message : "扩展服务暂不可用";
       }
     }
   } finally {
     active = false;
-    controls?.refresh.update({ loading: false });
+    if (!disposed) controls?.refresh.update({ loading: false });
   }
 }
 
@@ -119,7 +149,7 @@ function ready(context: HostReadyContext): void {
     element,
     select,
     () => {
-      day = data?.today ?? dayOf(Date.now() / 1000);
+      day = dayOf(Date.now() / 1000);
       followingToday = true;
       void load();
     },
@@ -131,7 +161,7 @@ function ready(context: HostReadyContext): void {
 
 host.onReady(ready);
 const timer = window.setInterval(() => {
-  if (!document.hidden) void load();
+  if (!document.hidden && mounted) void load();
 }, 60000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && mounted) void load();

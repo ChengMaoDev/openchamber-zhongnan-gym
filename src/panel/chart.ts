@@ -1,4 +1,4 @@
-import { minuteOf } from "../shared/domain";
+import { dayOf, minuteOf, nowSeconds } from "../shared/domain";
 import type { ViewData } from "../shared/schema";
 import { displayTraces, type Point } from "./trace";
 
@@ -17,7 +17,12 @@ export function drawChart(root: HTMLElement, data: ViewData, compact: boolean): 
   const width = 360;
   const height = compact ? 145 : 190;
   const plot = { x: 28, y: 15, width: 310, height: height - 42 };
-  const estimates = data.day === data.today ? (data.prediction?.points ?? []) : [];
+  const estimates =
+    data.day === data.today
+      ? (data.prediction?.points ?? []).filter(
+          (point) => point.timestamp > nowSeconds() && dayOf(point.timestamp) === data.today,
+        )
+      : [];
   const values = [
     ...data.samples.map((sample) => sample.count),
     ...estimates.map((point) => point.upper ?? point.count),

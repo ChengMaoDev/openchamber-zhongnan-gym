@@ -8,8 +8,14 @@ import type { Store } from "./store";
 export function createService(
   token: string,
   store: Store,
-  predictor: Readonly<{ prediction: Prediction | null; error: string | null }>,
+  predictor: Readonly<{
+    prediction: Prediction | null;
+    error: string | null;
+    isComputing?: boolean;
+  }>,
   imported: number,
+  historyImportError: string | null = null,
+  clock: () => number = nowSeconds,
 ) {
   const expected = Buffer.from(`Bearer ${token}`);
   return createServer((request, response) => {
@@ -34,7 +40,7 @@ export function createService(
       return;
     }
     try {
-      const current = nowSeconds();
+      const current = clock();
       const today = dayOf(current);
       const day = url.searchParams.get("day") || today;
       const timestamp = dayStart(day);
@@ -43,7 +49,14 @@ export function createService(
         return;
       }
       const original = predictor.prediction;
-      const prediction = original && current - original.issuedAt <= 180 ? original : null;
+      const prediction =
+        original &&
+        !predictor.error &&
+        dayOf(original.issuedAt) === today &&
+        original.issuedAt <= current &&
+        current - original.issuedAt <= 180
+          ? original
+          : null;
       const body: ViewData = {
         day,
         today,
@@ -52,11 +65,15 @@ export function createService(
         prediction: prediction
           ? {
               ...prediction,
-              points: [...prediction.points],
+              points: prediction.points.filter(
+                (point) => point.timestamp > current && dayOf(point.timestamp) === today,
+              ),
               weekdayDays: [...prediction.weekdayDays],
             }
           : null,
         modelError: predictor.error,
+        modelPending: predictor.isComputing ?? false,
+        historyImportError,
         imported,
       };
       response.end(JSON.stringify(body));

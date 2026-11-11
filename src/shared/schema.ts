@@ -28,6 +28,8 @@ export const viewSchema = z.object({
   samples: z.array(sampleSchema),
   prediction: predictionSchema.nullable(),
   modelError: z.string().nullable(),
+  modelPending: z.boolean().default(false),
+  historyImportError: z.string().nullable().default(null),
   imported: z.number().int().nonnegative(),
 });
 export type ViewData = z.infer<typeof viewSchema>;

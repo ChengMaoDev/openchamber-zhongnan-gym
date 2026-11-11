@@ -17,6 +17,7 @@ const rowSchema = z.object({
   count: z.number(),
 });
 const errorSchema = z.object({ timestamp: z.number(), error: z.string() });
+const resultSchema = z.object({ timestamp: z.number(), error: z.string().nullable() });
 
 export class Store {
   readonly db: DatabaseSync;
@@ -37,6 +38,10 @@ export class Store {
   }
 
   add(sample: Sample, payload: string): void {
+    this.transaction(() => this.writeSample(sample, payload));
+  }
+
+  private writeSample(sample: Sample, payload: string): void {
     const raw = this.db.prepare("SELECT * FROM samples ORDER BY timestamp DESC LIMIT 1").get();
     const last = raw ? rowSchema.parse(raw) : null;
     const failed = this.db
@@ -59,29 +64,64 @@ export class Store {
         )
         .run(sample.timestamp, sample.timestamp, sample.count, payload);
     }
+    this.saveResult(sample.timestamp, null);
   }
 
   failure(timestamp: number, error: string): void {
-    this.db.prepare("INSERT OR REPLACE INTO attempts VALUES(?,?)").run(timestamp, error);
+    this.transaction(() => {
+      this.db.prepare("INSERT OR REPLACE INTO attempts VALUES(?,?)").run(timestamp, error);
+      this.saveResult(timestamp, error);
+    });
   }
 
-  prune(current: number): void {
-    const cutoff = current - RETENTION_SECONDS;
+  private saveResult(timestamp: number, error: string | null): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO settings VALUES('last-result',?)")
+      .run(JSON.stringify({ timestamp, error }));
+  }
+
+  markRequest(timestamp: number): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO settings VALUES('last-request',?)")
+      .run(String(timestamp));
+  }
+
+  lastRequest(): number | null {
+    const saved = this.db.prepare("SELECT value FROM settings WHERE name='last-request'").get();
+    if (saved) return z.coerce.number().int().nonnegative().parse(saved.value);
+    const row = this.db
+      .prepare(
+        "SELECT max(timestamp) AS stamp FROM (SELECT max(observed_until) AS timestamp FROM samples UNION ALL SELECT max(timestamp) FROM attempts)",
+      )
+      .get();
+    return z.object({ stamp: z.number().nullable() }).parse(row).stamp;
+  }
+
+  private transaction(write: () => void): void {
     this.db.exec("BEGIN IMMEDIATE");
     try {
-      this.db.prepare("DELETE FROM samples WHERE observed_until<?").run(cutoff);
-      this.db
-        .prepare("UPDATE samples SET timestamp=? WHERE timestamp<? AND observed_until>=?")
-        .run(cutoff, cutoff, cutoff);
-      this.db.prepare("DELETE FROM attempts WHERE timestamp<?").run(cutoff);
-      this.db.exec("COMMIT; PRAGMA incremental_vacuum(64)");
+      write();
+      this.db.exec("COMMIT");
     } catch (error) {
       this.db.exec("ROLLBACK");
       throw error;
     }
   }
 
+  prune(current: number): void {
+    const cutoff = current - RETENTION_SECONDS;
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM samples WHERE observed_until<?").run(cutoff);
+      this.db
+        .prepare("UPDATE samples SET timestamp=? WHERE timestamp<? AND observed_until>=?")
+        .run(cutoff, cutoff, cutoff);
+      this.db.prepare("DELETE FROM attempts WHERE timestamp<?").run(cutoff);
+    });
+    this.db.exec("PRAGMA incremental_vacuum(64)");
+  }
+
   segments(start: number, end: number): Segment[] {
+    if (start > end) return [];
     return this.db
       .prepare(
         "SELECT timestamp,observed_until,count FROM samples WHERE observed_until>=? AND timestamp<=? ORDER BY timestamp",
@@ -115,8 +155,13 @@ export class Store {
     const last = raw ? rowSchema.parse(raw) : null;
     const failed = this.db.prepare("SELECT * FROM attempts ORDER BY timestamp DESC LIMIT 1").get();
     const failure = failed ? errorSchema.parse(failed) : null;
-    const error =
+    let error =
       failure && (!last || failure.timestamp > last.observed_until) ? failure.error : null;
+    const saved = this.db.prepare("SELECT value FROM settings WHERE name='last-result'").get();
+    if (saved) {
+      const result = resultSchema.parse(JSON.parse(z.string().parse(saved.value)));
+      if (!last || result.timestamp >= last.observed_until) error = result.error;
+    }
     return {
       count: last?.count ?? null,
       updatedAt: last?.observed_until ?? null,

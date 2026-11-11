@@ -14,10 +14,17 @@ if (!Number.isInteger(port) || port < 1 || port > 65535 || !token || !directory)
 }
 const store = new Store(join(directory, "history.sqlite3"));
 store.prune(nowSeconds());
-const imported = importLegacy(store, nowSeconds());
+let imported = 0;
+let historyImportError: string | null = null;
+try {
+  imported = importLegacy(store, nowSeconds());
+} catch (error) {
+  historyImportError = "旧记录暂未导入，当前采集不受影响";
+  console.error("导入旧记录失败", error);
+}
 const predictor = new Predictor(store);
 const collector = new Collector(store, () => predictor.refresh());
-const server = createService(token, store, predictor, imported);
+const server = createService(token, store, predictor, imported, historyImportError);
 server.on("error", (error) => {
   console.error("终南健身服务启动失败", error);
   process.exitCode = 1;

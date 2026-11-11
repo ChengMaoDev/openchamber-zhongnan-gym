@@ -1,6 +1,6 @@
 {
   "name": "openchamber-zhongnan-gym",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "终南健身人数记录与本地走势预测",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "bun test",
     "format": "biome check --write src scripts tests package.json tsconfig.json",
     "lint": "biome check src scripts tests package.json tsconfig.json",
-    "verify": "bun run check && bun run lint && bun test && bun run build"
+    "verify": "bun run check && bun run lint && bun test && bun run build && bun scripts/verify-manifest.ts && bun scripts/verify-host.ts"
   },
   "devDependencies": {
     "@openchamber/sdk": "2.7.0",
