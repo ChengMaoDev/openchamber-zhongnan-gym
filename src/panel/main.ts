@@ -42,6 +42,12 @@ function clampDay(selected: string, today: string): string {
 }
 
 function paint(): void {
+  const today = data?.today ?? dayOf(Date.now() / 1000);
+  element("date").textContent =
+    `${day === today ? "今天 " : ""}${day.slice(5, 7)} 月 ${day.slice(8)} 日`;
+  controls?.previous.update({ disabled: day <= dayOf(dayStart(today) - RETENTION_SECONDS) });
+  controls?.next.update({ disabled: day >= today });
+  element("today").hidden = day === today;
   if (!data) {
     element("notice").textContent = readError ?? "";
     element("updated").textContent = readError ? "等待连接恢复" : "正在连接…";
@@ -53,11 +59,6 @@ function paint(): void {
       ? "等待采集"
       : `${time.format(data.status.updatedAt * 1000)} 更新${data.status.stale || readError ? " · 等待恢复" : ""}`;
   element("updated").title = readError ?? data.status.error ?? "";
-  element("date").textContent =
-    `${day === data.today ? "今天 " : ""}${day.slice(5, 7)} 月 ${day.slice(8)} 日`;
-  controls?.previous.update({ disabled: day <= dayOf(dayStart(data.today) - 30 * 86400) });
-  controls?.next.update({ disabled: day >= data.today });
-  element("today").hidden = day === data.today;
   const loadingDay = data.day !== day;
   element("chart").setAttribute("aria-busy", String(loadingDay));
   if (loadingDay) {
