@@ -1,5 +1,8 @@
-import { dayOf, minuteOf, nowSeconds } from "../shared/domain";
+import { minuteOf, nowSeconds } from "../shared/domain";
 import type { ViewData } from "../shared/schema";
+import { chartReadings, forecastTraces, visibleForecast } from "./chart-data";
+import { curvePath } from "./curve";
+import { attachHover } from "./hover";
 import { displayTraces, type Point } from "./trace";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -17,12 +20,8 @@ export function drawChart(root: HTMLElement, data: ViewData, compact: boolean): 
   const width = 360;
   const height = compact ? 145 : 190;
   const plot = { x: 28, y: 15, width: 310, height: height - 42 };
-  const estimates =
-    data.day === data.today
-      ? (data.prediction?.points ?? []).filter(
-          (point) => point.timestamp > nowSeconds() && dayOf(point.timestamp) === data.today,
-        )
-      : [];
+  const current = nowSeconds();
+  const estimates = visibleForecast(data, current);
   const values = [
     ...data.samples.map((sample) => sample.count),
     ...estimates.map((point) => point.upper ?? point.count),
@@ -61,25 +60,12 @@ export function drawChart(root: HTMLElement, data: ViewData, compact: boolean): 
     text.textContent = `${String(hour).padStart(2, "0")}:00`;
     picture.append(text);
   }
-  const pathFor = (points: readonly Point[], close = false) =>
-    points
-      .map(
-        (point, index) =>
-          `${index === 0 ? "M" : "L"}${x(point.timestamp).toFixed(2)},${y(point.count).toFixed(2)}`,
-      )
-      .join(" ") + (close ? " Z" : "");
-  let group: typeof estimates = [];
-  const groups: (typeof estimates)[] = [];
-  for (const point of estimates) {
-    const previous = group.at(-1);
-    if (previous && point.timestamp - previous.timestamp > 300) {
-      groups.push(group);
-      group = [];
-    }
-    group.push(point);
-  }
-  if (group.length) groups.push(group);
-  for (const points of groups) {
+  const pathFor = (points: readonly Point[], close = false, smooth = false) =>
+    curvePath(
+      points.map((point) => ({ x: x(point.timestamp), y: y(point.count) })),
+      smooth,
+    ) + (close ? " Z" : "");
+  for (const points of forecastTraces(data, current)) {
     if (points.every((point) => point.lower !== null && point.upper !== null)) {
       const band = [
         ...points.map((point) => ({
@@ -95,7 +81,7 @@ export function drawChart(root: HTMLElement, data: ViewData, compact: boolean): 
     picture.append(svg("path", { d: pathFor(points), class: "trace forecast" }));
   }
   for (const points of displayTraces(data.samples))
-    picture.append(svg("path", { d: pathFor(points), class: "trace actual" }));
+    picture.append(svg("path", { d: pathFor(points, false, true), class: "trace actual" }));
   const latest = data.samples.at(-1);
   if (latest)
     picture.append(
@@ -117,4 +103,11 @@ export function drawChart(root: HTMLElement, data: ViewData, compact: boolean): 
     picture.append(empty);
   }
   root.replaceChildren(picture);
+  attachHover(root, picture, data.day, chartReadings(data.samples, estimates), {
+    width,
+    height,
+    plot,
+    x,
+    y,
+  });
 }

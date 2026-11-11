@@ -21,7 +21,7 @@ export function displayTraces(samples: readonly Sample[]): Point[][] {
       traces.push(points);
       points = [];
     }
-    if (bucket[0] && Math.floor(sample.timestamp / 180) !== Math.floor(bucket[0].timestamp / 180))
+    if (bucket[0] && Math.floor(sample.timestamp / 300) !== Math.floor(bucket[0].timestamp / 300))
       flush();
     bucket.push(sample);
     previous = sample.timestamp;

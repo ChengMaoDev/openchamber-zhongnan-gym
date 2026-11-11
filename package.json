@@ -1,6 +1,6 @@
 {
   "name": "openchamber-zhongnan-gym",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "终南健身人数记录与本地走势预测",
   "private": true,
   "type": "module",

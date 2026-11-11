@@ -66,8 +66,46 @@ nav {
   font-size: 0.85rem;
 }
 #chart {
+  position: relative;
   width: 100%;
   min-height: 190px;
+}
+.chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  padding: 7px 10px;
+  border: 1px solid var(--oc-border);
+  border-radius: 7px;
+  background: var(--oc-bg);
+  color: var(--oc-fg);
+  box-shadow: 0 3px 12px #00000012;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip[hidden] {
+  display: none;
+}
+.chart-tooltip strong {
+  display: block;
+  font-weight: 500;
+  color: var(--oc-muted);
+  margin-bottom: 2px;
+}
+.chart-tooltip div {
+  font-size: 0.9rem;
+}
+.chart-crosshair {
+  stroke: var(--oc-muted);
+  stroke-width: 0.7;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+.chart-hover-point {
+  stroke: var(--oc-bg);
+  stroke-width: 1.5;
+  pointer-events: none;
 }
 #chart svg {
   width: 100%;
