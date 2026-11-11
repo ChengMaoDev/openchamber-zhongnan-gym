@@ -1,6 +1,6 @@
 {
   "name": "openchamber-zhongnan-gym",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "终南健身人数记录与本地走势预测",
   "private": true,
   "type": "module",
@@ -25,11 +25,11 @@
     "engines": {
       "openchamber": ">=2.7.0"
     },
-    "id": "zhongnan-gym",
-    "name": "终南健身",
-    "icon": "icon.svg",
     "contributes": {
       "panel": {
+        "id": "zhongnan-gym",
+        "name": "终南健身",
+        "icon": "icon.svg",
         "entry": "panel/index.html"
       },
       "statusSection": {
