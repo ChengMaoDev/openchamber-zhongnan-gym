@@ -1,0 +1,154 @@
+* {
+  box-sizing: border-box;
+}
+:root {
+  --gym-actual: #16869c;
+  --gym-forecast: #8662c7;
+}
+:root[data-mode="dark"] {
+  --gym-actual: #64cad9;
+  --gym-forecast: #b6a0ed;
+}
+body {
+  margin: 0;
+  background: var(--oc-bg);
+  color: var(--oc-fg);
+}
+#app {
+  padding: 12px;
+  max-width: 480px;
+  margin: auto;
+}
+header,
+.current,
+nav,
+footer,
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header {
+  justify-content: space-between;
+}
+h1,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.muted {
+  color: var(--oc-muted);
+  font-size: 0.75rem;
+}
+.current {
+  margin: 16px 0 12px;
+  align-items: baseline;
+}
+#count {
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+#updated {
+  margin-left: auto;
+  text-align: right;
+}
+nav {
+  gap: 4px;
+}
+#date {
+  flex: 1;
+  text-align: center;
+  font-size: 0.85rem;
+}
+#chart {
+  width: 100%;
+  min-height: 190px;
+}
+#chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.axis {
+  fill: var(--oc-muted);
+  font: 10px sans-serif;
+}
+.grid {
+  stroke: var(--oc-border);
+  stroke-width: 0.7;
+}
+.trace {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.actual {
+  color: var(--gym-actual);
+}
+.forecast {
+  color: var(--gym-forecast);
+}
+.trace.actual {
+  stroke: var(--gym-actual);
+}
+.trace.forecast {
+  stroke: var(--gym-forecast);
+  stroke-dasharray: 5 4;
+}
+.band {
+  fill: var(--gym-forecast);
+  opacity: 0.09;
+}
+.legend {
+  margin: 10px 0 6px;
+  gap: 12px;
+  font-size: 0.75rem;
+}
+#summary {
+  margin-top: 2px;
+  min-height: 1.3em;
+}
+#model {
+  line-height: 1.5;
+}
+#notice:empty {
+  display: none;
+}
+#notice {
+  margin-top: 6px;
+  color: var(--oc-warning-text);
+}
+footer {
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--oc-border);
+}
+body[data-surface="status"] #app {
+  padding: 4px 8px;
+}
+body[data-surface="status"] header {
+  display: none;
+}
+body[data-surface="status"] .current {
+  margin: 4px 0 8px;
+}
+body[data-surface="status"] #count {
+  font-size: 1.65rem;
+}
+body[data-surface="status"] #chart {
+  min-height: 130px;
+}
+body[data-surface="status"] footer {
+  display: none;
+}
+body[data-surface="status"] .legend {
+  margin-top: 5px;
+}

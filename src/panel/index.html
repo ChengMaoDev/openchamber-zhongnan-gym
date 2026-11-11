@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>终南健身</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header><h1>终南健身</h1><span class="muted">每分钟更新</span></header>
+      <section class="current"><strong id="count">—</strong><span class="muted">人在场</span><span id="updated" class="muted">正在连接…</span></section>
+      <nav aria-label="日期选择"><div id="previous"></div><strong id="date"></strong><div id="next"></div><div id="today"></div></nav>
+      <div id="chart" role="img" aria-label="每日人数与后续预测曲线"></div>
+      <div id="summary" class="muted">等待第一条记录</div>
+      <div class="legend"><span class="actual">━ 实测人数</span><span class="forecast">┄ 今日预测</span></div>
+      <p id="model" class="muted">记录 1 天后开始预测</p>
+      <p id="notice" class="muted" role="status"></p>
+      <footer class="muted"><span>本机记录 · 30 天 · 北京时间</span><div id="refresh"></div></footer>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

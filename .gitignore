@@ -1,0 +1,5 @@
+node_modules/
+release/
+tmp/
+*.sqlite3*
+.DS_Store
