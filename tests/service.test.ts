@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createService } from "../src/service/server";
 import { Store } from "../src/service/store";
 import { dayOf, dayStart, nowSeconds, type Prediction } from "../src/shared/domain";
 import { viewSchema } from "../src/shared/schema";
+import { cleanupDirectory } from "./cleanup";
 
 test("扩展服务只接受宿主鉴权请求，不提供MCP或任意网络代理", async () => {
   const directory = mkdtempSync(join(tmpdir(), "gym-api-"));
@@ -31,7 +32,7 @@ test("扩展服务只接受宿主鉴权请求，不提供MCP或任意网络代�
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });
 
@@ -81,6 +82,6 @@ test("跨日、过期、已失败的预测不伪装成今日预测", async () =>
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });

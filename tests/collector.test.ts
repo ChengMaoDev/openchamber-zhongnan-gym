@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Collector, parseCount, type Request } from "../src/service/collector";
 import { Store } from "../src/service/store";
 import { nowSeconds } from "../src/shared/domain";
+import { cleanupDirectory } from "./cleanup";
 
 test("服务失败、布尔、负数不能当作0人", () => {
   for (const value of [
@@ -42,7 +43,7 @@ test("服务重启后也不会在一分钟内重复请求", () => {
   } finally {
     collector.stop();
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });
 
@@ -83,6 +84,6 @@ test("后台每分钟一次，关闭面板不影响采集节奏，失败后恢�
   } finally {
     collector.stop();
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });

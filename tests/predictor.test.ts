@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Predictor } from "../src/service/predictor";
 import { Store } from "../src/service/store";
+import { cleanupDirectory } from "./cleanup";
 
 async function waitFor(condition: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -39,7 +40,7 @@ test("预测线程意外退出后，下次采集能够重建并继续预测", as
   } finally {
     await predictor.stop();
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });
 
@@ -57,6 +58,6 @@ test("预测线程不响应时有超时保护，而不是永久卡在计算中",
   } finally {
     await predictor.stop();
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });

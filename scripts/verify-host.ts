@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Store } from "../src/service/store";
 import { nowSeconds } from "../src/shared/domain";
 import { viewSchema } from "../src/shared/schema";
+import { cleanupDirectory } from "../tests/cleanup";
 import { history } from "../tests/fixtures";
 
 const directory = mkdtempSync(join(tmpdir(), "gym-host-"));
@@ -79,5 +80,5 @@ try {
     if (child.exitCode !== null) resolve();
     else child.once("exit", () => resolve());
   });
-  rmSync(directory, { recursive: true, force: true });
+  cleanupDirectory(directory);
 }

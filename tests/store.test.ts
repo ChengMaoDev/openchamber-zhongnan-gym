@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Store } from "../src/service/store";
 import { dayStart, RETENTION_SECONDS } from "../src/shared/domain";
+import { cleanupDirectory } from "./cleanup";
 import { CURRENT } from "./fixtures";
 
 let directory: string;
@@ -14,7 +15,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   store.close();
-  rmSync(directory, { recursive: true, force: true });
+  cleanupDirectory(directory);
 });
 
 describe("内部人数记录", () => {

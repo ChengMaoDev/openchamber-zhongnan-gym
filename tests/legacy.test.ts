@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { importLegacyFile } from "../src/service/legacy";
 import { Store } from "../src/service/store";
+import { cleanupDirectory } from "./cleanup";
 import { CURRENT } from "./fixtures";
 
 test("支持早期逐分钟数据库，保留新插件的较新记录", () => {
@@ -23,7 +24,7 @@ test("支持早期逐分钟数据库，保留新插件的较新记录", () => {
     expect(store.status(CURRENT).count).toBe(92);
   } finally {
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });
 
@@ -38,6 +39,6 @@ test("损坏的旧库不会破坏新库或留下未结束事务", () => {
     expect(store.status(CURRENT).count).toBe(92);
   } finally {
     store.close();
-    rmSync(directory, { recursive: true, force: true });
+    cleanupDirectory(directory);
   }
 });
