@@ -36,6 +36,10 @@ window.addEventListener('message',async(event)=>{
     window.requests.push(message.payload);
     if(held) await new Promise(resolve=>pending.push(resolve));
     if(failed) return reply({status:503,body:'{}'});
+    if(new URLSearchParams(location.search).has('live')) {
+      const response=await fetch('/test-service',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(message.payload)});
+      return reply({status:response.status,body:await response.text()});
+    }
     const day=message.payload.query?.day||today;
     const base=Date.parse(`${day}T00:00:00+08:00`)/1000;
     const count=day===today?80:40;

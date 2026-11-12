@@ -23,6 +23,7 @@ export class Predictor {
   private worker: Worker | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  private pending = false;
 
   constructor(
     private readonly store: Store,
@@ -48,10 +49,15 @@ export class Predictor {
       if ("error" in result.data) {
         this.prediction = null;
         this.error = result.data.error;
-        return;
+      } else {
+        this.prediction = result.data.prediction;
+        this.error = null;
       }
-      this.prediction = result.data.prediction;
-      this.error = null;
+      if (this.pending) {
+        this.pending = false;
+        this.prediction = null;
+        this.refresh();
+      }
     });
     worker.on("error", (error) => {
       if (this.worker !== worker || this.stopped) return;
@@ -72,6 +78,7 @@ export class Predictor {
   }
 
   private fail(message: string, worker: Worker): void {
+    this.pending = false;
     this.finish();
     this.error = message;
     this.prediction = null;
@@ -80,7 +87,11 @@ export class Predictor {
   }
 
   refresh(): void {
-    if (this.active || this.stopped) return;
+    if (this.stopped) return;
+    if (this.active) {
+      this.pending = true;
+      return;
+    }
     try {
       const current = nowSeconds();
       const samples = this.store.history(current);
@@ -101,6 +112,7 @@ export class Predictor {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.pending = false;
     this.finish();
     const worker = this.worker;
     this.worker = null;

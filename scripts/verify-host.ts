@@ -4,8 +4,10 @@ import { mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import { Store } from "../src/service/store";
 import { nowSeconds } from "../src/shared/domain";
+import { importResultSchema } from "../src/shared/history-file";
 import { viewSchema } from "../src/shared/schema";
 import { cleanupDirectory } from "../tests/cleanup";
 import { history } from "../tests/fixtures";
@@ -72,8 +74,45 @@ try {
     await Bun.sleep(100);
   }
   if (!trained) throw new Error(`独立预测线程未完成训练：${logs}`);
+  const post = (path: string, body?: unknown) =>
+    fetch(`${base}${path}`, {
+      method: "POST",
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const { id } = z
+    .object({ id: z.string().uuid() })
+    .parse(await (await post("/history/import/start")).json());
+  const text = JSON.stringify({
+    format: "zhongnan-gym-history",
+    version: 1,
+    venue: 8840,
+    exportedAt: nowSeconds(),
+    segments: history(2, nowSeconds()).map((sample) => [
+      sample.timestamp,
+      sample.timestamp,
+      sample.count,
+    ]),
+  });
+  const chunk = await post("/history/import/chunk", { id, index: 0, text });
+  if (!chunk.ok) throw new Error("打包后台无法接收历史文件");
+  const result = importResultSchema.parse(
+    await (await post("/history/import/commit", { id })).json(),
+  );
+  if (!result.added) throw new Error("历史合并没有新增记录");
+  let refreshed = false;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const view = viewSchema.parse(await (await fetch(`${base}/view`, { headers })).json());
+    if (view.status.count !== 81) throw new Error("导入改变了本机实时人数");
+    if (view.prediction?.trainingDays === 2) {
+      refreshed = true;
+      break;
+    }
+    await Bun.sleep(100);
+  }
+  if (!refreshed) throw new Error(`历史导入后预测没有更新：${logs}`);
   if ((await fetch(`${base}/mcp`, { headers })).status !== 404) throw new Error("扩展不应提供MCP");
-  console.log("打包后台：内部SQLite、宿主鉴权、预测工作线程正常；没有MCP接口");
+  console.log("打包后台：内部SQLite、宿主鉴权、历史合并和预测重算正常；没有MCP接口");
 } finally {
   child.kill("SIGTERM");
   await new Promise<void>((resolve) => {

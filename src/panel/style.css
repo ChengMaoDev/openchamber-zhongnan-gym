@@ -190,3 +190,19 @@ body[data-surface="status"] footer {
 body[data-surface="status"] .legend {
   margin-top: 5px;
 }
+.transfer-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.transfer-notice {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.transfer-notice:empty {
+  display: none;
+}
+body[data-surface="status"] #history-transfer {
+  display: none;
+}

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { Prediction } from "../shared/domain";
 import { dayOf, dayStart, nowSeconds } from "../shared/domain";
 import type { ViewData } from "../shared/schema";
+import { HistoryTransfer, type HistoryTransferOptions } from "./history-transfer";
 import type { Store } from "./store";
 
 export function createService(
@@ -12,12 +13,15 @@ export function createService(
     prediction: Prediction | null;
     error: string | null;
     isComputing?: boolean;
+    refresh?: () => void;
   }>,
   imported: number,
   historyImportError: string | null = null,
   clock: () => number = nowSeconds,
+  historyOptions: HistoryTransferOptions = {},
 ) {
   const expected = Buffer.from(`Bearer ${token}`);
+  const history = new HistoryTransfer(store, () => predictor.refresh?.(), clock, historyOptions);
   return createServer((request, response) => {
     response.setHeader("Content-Type", "application/json; charset=utf-8");
     response.setHeader("Cache-Control", "no-store");
@@ -27,6 +31,10 @@ export function createService(
       return;
     }
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    if (url.pathname.startsWith("/history/")) {
+      void history.handle(request, response, url.pathname);
+      return;
+    }
     if (request.method !== "GET") {
       response.writeHead(405).end();
       return;

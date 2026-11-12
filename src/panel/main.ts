@@ -4,6 +4,7 @@ import { dayOf, dayStart, RETENTION_SECONDS, ZONE } from "../shared/domain";
 import { type ViewData, viewSchema } from "../shared/schema";
 import { drawChart } from "./chart";
 import { createControls } from "./controls";
+import { mountHistoryTransfer } from "./history-transfer";
 
 function element(id: string): HTMLElement {
   const result = document.getElementById(id);
@@ -22,6 +23,7 @@ let pending = false;
 let disposed = false;
 let controls: ReturnType<typeof createControls> | null = null;
 let readError: string | null = null;
+let historyTransfer: ReturnType<typeof mountHistoryTransfer> | null = null;
 const time = new Intl.DateTimeFormat("zh-CN", {
   timeZone: ZONE,
   hour: "2-digit",
@@ -137,11 +139,26 @@ async function load(): Promise<void> {
   }
 }
 
+async function refreshImportedHistory(): Promise<void> {
+  await load();
+  for (let attempt = 0; attempt < 60 && !disposed && data?.modelPending; attempt++) {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
+    await load();
+  }
+}
+
 function ready(context: HostReadyContext): void {
   applyHostReady(context, document.documentElement);
   document.documentElement.dataset.mode = context.theme.mode;
   document.body.dataset.surface = context.surface;
   compact = context.surface === "status";
+  element("history-transfer").hidden = compact;
+  if (!compact && !historyTransfer)
+    historyTransfer = mountHistoryTransfer(
+      element("history-transfer"),
+      host,
+      refreshImportedHistory,
+    );
   if (mounted) {
     paint();
     return;
@@ -173,6 +190,7 @@ window.addEventListener(
     disposed = true;
     window.clearInterval(timer);
     if (controls) for (const control of Object.values(controls)) control.dispose();
+    historyTransfer?.dispose();
     host.dispose();
   },
   { once: true },

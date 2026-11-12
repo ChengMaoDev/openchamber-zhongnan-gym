@@ -10,6 +10,7 @@ import {
   type Segment,
   type Status,
 } from "../shared/domain";
+import { mergeHistory } from "./history-merge";
 
 const rowSchema = z.object({
   timestamp: z.number(),
@@ -18,6 +19,7 @@ const rowSchema = z.object({
 });
 const errorSchema = z.object({ timestamp: z.number(), error: z.string() });
 const resultSchema = z.object({ timestamp: z.number(), error: z.string().nullable() });
+const IMPORTED_PAYLOAD = '{"source":"history-import"}';
 
 export class Store {
   readonly db: DatabaseSync;
@@ -49,6 +51,7 @@ export class Store {
       .get(last?.observed_until ?? 0, sample.timestamp);
     if (
       last &&
+      raw?.payload !== IMPORTED_PAYLOAD &&
       last.count === sample.count &&
       sample.timestamp - last.observed_until >= 0 &&
       sample.timestamp - last.observed_until <= 90 &&
@@ -91,9 +94,9 @@ export class Store {
     if (saved) return z.coerce.number().int().nonnegative().parse(saved.value);
     const row = this.db
       .prepare(
-        "SELECT max(timestamp) AS stamp FROM (SELECT max(observed_until) AS timestamp FROM samples UNION ALL SELECT max(timestamp) FROM attempts)",
+        "SELECT max(timestamp) AS stamp FROM (SELECT max(observed_until) AS timestamp FROM samples WHERE payload<>? UNION ALL SELECT max(timestamp) FROM attempts)",
       )
-      .get();
+      .get(IMPORTED_PAYLOAD);
     return z.object({ stamp: z.number().nullable() }).parse(row).stamp;
   }
 
@@ -141,6 +144,22 @@ export class Store {
     return expand(this.segments(current - RETENTION_SECONDS, current));
   }
 
+  importHistory(segments: readonly Segment[], current: number) {
+    const result = mergeHistory(
+      this.segments(current - RETENTION_SECONDS, current),
+      segments,
+      current,
+    );
+    this.transaction(() => {
+      const insert = this.db.prepare(
+        "INSERT INTO samples(timestamp,observed_until,count,payload) VALUES(?,?,?,?)",
+      );
+      for (const segment of result.segments)
+        insert.run(segment.start, segment.end, segment.count, IMPORTED_PAYLOAD);
+    });
+    return { added: result.added, skipped: result.skipped };
+  }
+
   day(day: string, current: number): Sample[] {
     return expand(
       this.segments(
@@ -151,7 +170,9 @@ export class Store {
   }
 
   status(current: number): Status {
-    const raw = this.db.prepare("SELECT * FROM samples ORDER BY timestamp DESC LIMIT 1").get();
+    const raw = this.db
+      .prepare("SELECT * FROM samples WHERE payload<>? ORDER BY timestamp DESC LIMIT 1")
+      .get(IMPORTED_PAYLOAD);
     const last = raw ? rowSchema.parse(raw) : null;
     const failed = this.db.prepare("SELECT * FROM attempts ORDER BY timestamp DESC LIMIT 1").get();
     const failure = failed ? errorSchema.parse(failed) : null;

@@ -16,6 +16,11 @@
       <div class="legend"><span class="actual">━ 实测人数</span><span class="forecast">┄ 今日预测</span></div>
       <p id="model" class="muted">记录 1 天后开始预测</p>
       <p id="notice" class="muted" role="status"></p>
+      <section id="history-transfer" aria-label="历史记录" hidden>
+        <div class="transfer-buttons"><div data-action="export"></div><div data-action="import"></div><div data-action="reveal" hidden></div></div>
+        <input type="file" accept=".json,application/json" aria-label="选择历史记录文件" hidden />
+        <p class="muted transfer-notice" role="status"></p>
+      </section>
       <footer class="muted"><span>本机记录 · 30 天 · 北京时间</span><div id="refresh"></div></footer>
     </main>
     <script src="main.js"></script>

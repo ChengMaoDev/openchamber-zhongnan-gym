@@ -61,3 +61,39 @@ test("预测线程不响应时有超时保护，而不是永久卡在计算中",
     cleanupDirectory(directory);
   }
 });
+
+test("计算期间导入新历史，会在当前计算结束后用新数据重新预测", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "gym-worker-import-"));
+  const path = join(directory, "worker.cjs");
+  writeFileSync(
+    path,
+    `
+    const {parentPort}=require('node:worker_threads');
+    parentPort.on('message', request=>setTimeout(()=>parentPort.postMessage({prediction:{
+      issuedAt:request.current,points:[],method:'test',trainingDays:request.samples.length,mae:null,weekdayDays:[0,0,0,0,0,0,0]
+    }}),40));
+  `,
+  );
+  const store = new Store(join(directory, "history.sqlite3"));
+  const predictor = new Predictor(store, path);
+  try {
+    predictor.refresh();
+    store.importHistory(
+      [
+        {
+          start: Math.floor(Date.now() / 1000) - 60,
+          end: Math.floor(Date.now() / 1000) - 60,
+          count: 80,
+        },
+      ],
+      Math.floor(Date.now() / 1000),
+    );
+    predictor.refresh();
+    await waitFor(() => predictor.prediction?.trainingDays === 1);
+    expect(predictor.isComputing).toBe(false);
+  } finally {
+    await predictor.stop();
+    store.close();
+    cleanupDirectory(directory);
+  }
+});
