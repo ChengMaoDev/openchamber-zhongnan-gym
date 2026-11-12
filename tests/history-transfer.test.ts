@@ -80,8 +80,16 @@ test("导出文件不含内部状态，通过分块导入大于宿主单次限�
   await scenario(async ({ store, post, changed, revealed }) => {
     expect((await post("/history/export", undefined, false)).status).toBe(401);
     expect((await post("/history/export")).status).toBe(400);
-    for (let stamp = CURRENT - RETENTION_SECONDS; stamp <= CURRENT; stamp += 60)
-      store.add({ timestamp: stamp, count: (stamp / 60) % 200 }, '{"internal":"not-exported"}');
+    store.db.exec("BEGIN IMMEDIATE");
+    try {
+      const insert = store.db.prepare("INSERT INTO samples VALUES(?,?,?,?)");
+      for (let stamp = CURRENT - RETENTION_SECONDS; stamp <= CURRENT; stamp += 60)
+        insert.run(stamp, stamp, (stamp / 60) % 200, '{"internal":"not-exported"}');
+      store.db.exec("COMMIT");
+    } catch (error) {
+      store.db.exec("ROLLBACK");
+      throw error;
+    }
     const local = store.status(CURRENT);
     const saved = exportResultSchema.parse(await (await post("/history/export")).json());
     const text = readFileSync(saved.path, "utf8");
