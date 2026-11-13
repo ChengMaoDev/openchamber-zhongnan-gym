@@ -1,10 +1,12 @@
 import { connectHost, type HostReadyContext } from "@openchamber/sdk";
 import { applyHostReady } from "@openchamber/sdk/ui";
+import { version } from "../../package.json";
 import { dayOf, dayStart, RETENTION_SECONDS, ZONE } from "../shared/domain";
 import { type ViewData, viewSchema } from "../shared/schema";
 import { drawChart } from "./chart";
 import { createControls } from "./controls";
 import { mountHistoryTransfer } from "./history-transfer";
+import { updatedPanelUrl } from "./version";
 
 function element(id: string): HTMLElement {
   const result = document.getElementById(id);
@@ -115,6 +117,11 @@ async function load(): Promise<void> {
         if (reply.status !== 200) throw new Error("暂时无法读取记录");
         const raw: unknown = JSON.parse(reply.body);
         const result = viewSchema.parse(raw);
+        const nextPanel = updatedPanelUrl(window.location.href, version, result.version);
+        if (nextPanel) {
+          window.location.replace(nextPanel);
+          return;
+        }
         if (requested !== day) {
           pending = true;
           continue;

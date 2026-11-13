@@ -1,5 +1,6 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { nowSeconds } from "../shared/domain";
+import { AutoUpdater } from "./auto-update";
 import { Collector } from "./collector";
 import { importLegacy } from "./legacy";
 import { Predictor } from "./predictor";
@@ -25,6 +26,8 @@ try {
 const predictor = new Predictor(store);
 const collector = new Collector(store, () => predictor.refresh());
 const server = createService(token, store, predictor, imported, historyImportError);
+const entry = process.argv[1];
+const updater = entry ? new AutoUpdater(dirname(dirname(entry)), stop) : null;
 server.on("error", (error) => {
   console.error("终南健身服务启动失败", error);
   process.exitCode = 1;
@@ -32,12 +35,14 @@ server.on("error", (error) => {
 server.listen(port, "127.0.0.1", () => {
   collector.start();
   predictor.refresh();
+  updater?.start();
 });
 
 let stopping = false;
 async function stop(): Promise<void> {
   if (stopping) return;
   stopping = true;
+  updater?.stop();
   collector.stop();
   await predictor.stop();
   store.close();

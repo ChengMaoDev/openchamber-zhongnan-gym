@@ -53,6 +53,7 @@ function validate(samples: readonly Sample[], days: readonly string[]): Validati
 
 export class Forecaster {
   private cachedDay = "";
+  private cachedSamples: readonly Sample[] = [];
   private profile: Profile | null = null;
   private validation: Validation = { alpha: null, mae: null, spread: null };
 
@@ -67,10 +68,17 @@ export class Forecaster {
       weekdayDays: daysByWeekday(days),
     };
     if (!days.length) return { ...common, points: [], method: "正在积累数据", mae: null };
-    if (this.cachedDay !== day || this.profile === null) {
+    const historyChanged =
+      previous.length !== this.cachedSamples.length ||
+      previous.some((sample, index) => {
+        const cached = this.cachedSamples[index];
+        return !cached || sample.timestamp !== cached.timestamp || sample.count !== cached.count;
+      });
+    if (this.cachedDay !== day || this.profile === null || historyChanged) {
       this.validation = validate(previous, days);
       this.profile = Profile.fit(previous, this.validation.alpha);
       this.cachedDay = day;
+      this.cachedSamples = previous;
     }
     const times: number[] = [];
     for (

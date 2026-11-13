@@ -22,6 +22,31 @@ describe("本地预测", () => {
     expect(new Forecaster().predict(sparse, CURRENT).points).toHaveLength(0);
   });
 
+  test("同一天补充历史后，预测曲线与用完整数据重新训练的结果一致", () => {
+    const model = new Forecaster();
+    const original = history(1).map((sample) => ({ ...sample, count: 20 }));
+    const imported = history(2).map((sample) => ({
+      ...sample,
+      count: sample.timestamp < dayStart("2026-11-10") ? 120 : 20,
+    }));
+    const before = model.predict(original, CURRENT);
+    const after = model.predict(imported, CURRENT);
+    const fresh = new Forecaster().predict(imported, CURRENT);
+    expect(after.trainingDays).toBe(2);
+    expect(after.points).toEqual(fresh.points);
+    expect(after.points[0]?.count).toBeGreaterThan((before.points[0]?.count ?? 0) + 20);
+  });
+
+  test("历史样本数量和时间不变、人数变化时，也不能继续使用旧模型", () => {
+    const model = new Forecaster();
+    const original = history(1).map((sample) => ({ ...sample, count: 20 }));
+    model.predict(original, CURRENT);
+    const updated = original.map((sample) => ({ ...sample, count: 120 }));
+    expect(model.predict(updated, CURRENT).points).toEqual(
+      new Forecaster().predict(updated, CURRENT).points,
+    );
+  });
+
   test("未来数据不泄漏进模型，只预测当日后续且非负", () => {
     const samples = history(3);
     const original = new Forecaster().predict(samples, CURRENT);

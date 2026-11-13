@@ -17,6 +17,7 @@ export const predictionSchema = z.object({
   weekdayDays: z.array(z.number().int().nonnegative()).length(7),
 });
 export const viewSchema = z.object({
+  version: z.string().optional(),
   day: z.string(),
   today: z.string(),
   status: z.object({

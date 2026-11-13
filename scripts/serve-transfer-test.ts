@@ -9,11 +9,14 @@ import { Store } from "../src/service/store";
 import { dayOf, dayStart, nowSeconds } from "../src/shared/domain";
 import type { HistoryFile } from "../src/shared/history-file";
 import { cleanupDirectory } from "../tests/cleanup";
+import { history } from "../tests/fixtures";
 
 const root = resolve(import.meta.dir, "..");
 const directory = mkdtempSync(join(tmpdir(), "gym-transfer-browser-"));
 const store = new Store(join(directory, "history.sqlite3"));
 const current = nowSeconds();
+if (process.argv.includes("--seed-model"))
+  for (const sample of history(1, current)) store.add({ ...sample, count: 20 }, "{}");
 store.add({ timestamp: current, count: 81 }, "{}");
 const predictor = new Predictor(store, join(root, "service/model-worker.cjs"));
 let revealed: string | null = null;

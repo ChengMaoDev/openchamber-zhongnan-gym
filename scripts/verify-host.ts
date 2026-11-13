@@ -11,6 +11,7 @@ import { importResultSchema } from "../src/shared/history-file";
 import { viewSchema } from "../src/shared/schema";
 import { cleanupDirectory } from "../tests/cleanup";
 import { history } from "../tests/fixtures";
+import { verifyWorker } from "./verify-worker";
 
 const directory = mkdtempSync(join(tmpdir(), "gym-host-"));
 const store = new Store(join(directory, "history.sqlite3"));
@@ -111,6 +112,7 @@ try {
     await Bun.sleep(100);
   }
   if (!refreshed) throw new Error(`历史导入后预测没有更新：${logs}`);
+  await verifyWorker(runtime, join(root, "service/model-worker.cjs"));
   if ((await fetch(`${base}/mcp`, { headers })).status !== 404) throw new Error("扩展不应提供MCP");
   console.log("打包后台：内部SQLite、宿主鉴权、历史合并和预测重算正常；没有MCP接口");
 } finally {

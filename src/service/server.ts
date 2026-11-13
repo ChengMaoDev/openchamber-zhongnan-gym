@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
+import { version } from "../../package.json";
 import type { Prediction } from "../shared/domain";
 import { dayOf, dayStart, nowSeconds } from "../shared/domain";
 import type { ViewData } from "../shared/schema";
@@ -66,6 +67,7 @@ export function createService(
           ? original
           : null;
       const body: ViewData = {
+        version,
         day,
         today,
         status: store.status(current),
